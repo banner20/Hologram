@@ -1,0 +1,681 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Hologram + FBX Anim + Shader with Skinning</title>
+  <!-- Three.js -->
+  <script src="https://cdn.jsdelivr.net/npm/three@0.146.0/build/three.min.js"></script>
+  <!-- fflate.min.js (for FBXLoader) -->
+  <script src="https://cdn.jsdelivr.net/npm/three@0.146.0/examples/js/libs/fflate.min.js"></script>
+  <!-- FBXLoader -->
+  <script src="https://cdn.jsdelivr.net/npm/three@0.146.0/examples/js/loaders/FBXLoader.js"></script>
+  <style>
+    body {
+      margin: 0;
+      background: black;
+      overflow: hidden;
+      color: #ccc;
+      font-family: sans-serif;
+    }
+    #myCanvas {
+      position: absolute;
+      top: 0; left: 0;
+      display: block;
+    }
+    .squareOutline {
+      position: absolute;
+      border: 2px dashed red;
+      pointer-events: none;
+      box-sizing: border-box;
+    }
+    .quadOverlay {
+      position: absolute;
+      background: rgba(255, 0, 0, 0);
+      pointer-events: auto;
+    }
+    #inversionUI, #shaderUI {
+      position: absolute;
+      background: rgba(0,0,0,0.7);
+      padding: 10px;
+      border-radius: 5px;
+      z-index: 10;
+      max-width: 250px;
+    }
+    #inversionUI {
+      top: 10px;
+      left: 10px;
+    }
+    #shaderUI {
+      bottom: 10px;
+      left: 10px;
+    }
+    .checkbox-row, .button-row, .input-row, .axis-row {
+      margin-bottom: 6px;
+    }
+    button {
+      margin-right: 5px;
+      cursor: pointer;
+    }
+    input[type="color"],
+    input[type="range"] {
+      width: 100%;
+    }
+    /* UI rows */
+    #zoomRow, #animRow, #modelRotRow, #containerScaleRow, #gapRow {
+      margin-top: 8px;
+      background: rgba(0,0,0,0.5);
+      padding: 6px;
+      border-radius: 4px;
+    }
+    #animRow label {
+      margin-right: 10px;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="myCanvas"></canvas>
+  <!-- The 5 squares for reference -->
+  <div id="squareTop"    class="squareOutline"></div>
+  <div id="squareBottom" class="squareOutline"></div>
+  <div id="squareLeft"   class="squareOutline"></div>
+  <div id="squareRight"  class="squareOutline"></div>
+  <div id="squareCenter" class="squareOutline"></div>
+  <!-- Overlays for the 4 quadrants -->
+  <div id="overlayTop"    class="quadOverlay"></div>
+  <div id="overlayBottom" class="quadOverlay"></div>
+  <div id="overlayLeft"   class="quadOverlay"></div>
+  <div id="overlayRight"  class="quadOverlay"></div>
+  <!-- UI for camera controls -->
+  <div id="inversionUI">
+    <h3>Camera Controls</h3>
+    <div class="checkbox-row">
+      <label><input type="checkbox" id="flipXCheck"> Flip X</label>
+    </div>
+    <div class="checkbox-row">
+      <label><input type="checkbox" id="flipYCheck"> Flip Y</label>
+    </div>
+    <div class="checkbox-row">
+      <label><input type="checkbox" id="rotate180Check"> Rotate 180° (Z-axis)</label>
+    </div>
+    <div class="button-row">
+      <button id="rotMinus45Btn">-45° Z</button>
+      <button id="rotPlus45Btn">+45° Z</button>
+      <button id="rotMinus45XBtn">-45° X</button>
+      <button id="rotPlus45XBtn">+45° X</button>
+      <button id="rotMinus45YBtn">-45° Y</button>
+      <button id="rotPlus45YBtn">+45° Y</button>
+    </div>
+    <div id="zoomRow">
+      <label>Overall Zoom: <span id="zoomLabel">1.00</span></label><br>
+      <input type="range" id="zoomSlider" min="0.1" max="2.0" step="0.01" value="1.00">
+    </div>
+    <div id="modelRotRow">
+      <label>Model Y Rotation: <span id="modelRotLabel">0.00</span></label><br>
+      <input type="range" id="modelRotSlider" min="-180" max="180" step="1" value="0">
+    </div>
+    <div id="animRow">
+      <label><input type="radio" name="animMode" value="scrub" checked> Scrub</label>
+      <label><input type="radio" name="animMode" value="play"> Play</label><br>
+      <label>Timeline: <span id="animTimeLabel">0.00</span></label><br>
+      <input type="range" id="animSlider" min="0" max="1" step="0.001" value="0">
+    </div>
+    <div id="containerScaleRow">
+      <label>Container Scale: <span id="containerScaleLabel">0.20</span></label><br>
+      <input type="range" id="containerScaleSlider" min="0.1" max="0.4" step="0.01" value="0.2">
+    </div>
+    <div id="gapRow">
+      <label>Gap Fraction: <span id="gapLabel">0.10</span></label><br>
+      <input type="range" id="gapSlider" min="-0.5" max="0.5" step="0.01" value="0.1">
+    </div>
+  </div>
+  <!-- Shader Controls UI -->
+  <div id="shaderUI">
+    <h3>Shader Controls</h3>
+    <div class="checkbox-row">
+      <label><input type="checkbox" id="shaderEnableCheck" checked> Enable Shader</label>
+    </div>
+    <div class="input-row">
+      <label>Base Color:</label>
+      <input type="color" id="baseColorInput" value="#00ffff">
+    </div>
+    <div class="input-row">
+      <label>Glow Color:</label>
+      <input type="color" id="glowColorInput" value="#0088ff">
+    </div>
+    <div class="input-row">
+      <label>Scanline Speed: <span id="scanlineSpeedLabel">0.50</span></label>
+      <input type="range" id="scanlineSpeedSlider" min="0.1" max="2.0" step="0.1" value="0.5">
+    </div>
+    <div class="input-row">
+      <label>Scanline Frequency: <span id="scanlineFreqLabel">50</span></label>
+      <input type="range" id="scanlineFreqSlider" min="10" max="100" step="1" value="50">
+    </div>
+  </div>
+  <script>
+    let renderer, scene;
+    let w, h;
+    let cameraFront, cameraBack, cameraLeft, cameraRight;
+    const rectTop = {}, rectBottom = {}, rectLeft = {}, rectRight = {}, rectCenter = {};
+    let overlayTop, overlayBottom, overlayLeft, overlayRight;
+    let inversionUI;
+    let flipXCheck, flipYCheck, rotate180Check;
+    let rotMinus45Btn, rotPlus45Btn;
+    let rotMinus45XBtn, rotPlus45XBtn;
+    let rotMinus45YBtn, rotPlus45YBtn;
+    let zoomSlider, zoomLabel;
+    let modelRotSlider, modelRotLabel;
+    let animSlider, animTimeLabel;
+    let animModeRadioButtons;
+    let containerScaleSlider, containerScaleLabel;
+    let gapSlider, gapLabel;
+    let containerScaleFraction = 0.2;
+    let gapFraction = 0.1;
+    const pivot = new THREE.Vector3(0,1,0);
+    const cameraStates = {
+      front: { rx:0,   ry:0, rz:0, flipX:false, flipY:false, rotate180:false },
+      back:  { rx:0,   ry:0, rz:0, flipX:false, flipY:false, rotate180:false },
+      left:  { rx:90,  ry:0, rz:0, flipX:false, flipY:false, rotate180:false },
+      right: { rx:-90, ry:0, rz:0, flipX:false, flipY:false, rotate180:false }
+    };
+    const basePositions = {
+      front: new THREE.Vector3(0,2, 10),
+      back:  new THREE.Vector3(0,2,-10),
+      left:  new THREE.Vector3(-10,2,0),
+      right: new THREE.Vector3(10,2,0)
+    };
+    let globalZoom = 1.0;
+    let modelYRotation = 0;
+    let model = null;
+    let mixer = null;
+    let action = null;
+    let animDuration = 0;
+    let animMode = "scrub";
+    const clock = new THREE.Clock();
+    let selectedCamKey = null;
+    // For shader
+    let hologramMaterial = null;
+    let shaderEnabled = true;
+    let originalMaterials = [];
+    // Shader UI elements
+    let shaderEnableCheck, baseColorInput, glowColorInput;
+    let scanlineSpeedSlider, scanlineSpeedLabel;
+    let scanlineFreqSlider, scanlineFreqLabel;
+    
+    function init() {
+      const canvas = document.getElementById('myCanvas');
+      renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+      renderer.setClearColor(0x000000, 1);
+      scene = new THREE.Scene();
+      const amb = new THREE.AmbientLight(0xffffff, 0.6);
+      scene.add(amb);
+      const dir = new THREE.DirectionalLight(0xffffff, 0.8);
+      dir.position.set(5,10,7);
+      scene.add(dir);
+      const axesHelper = new THREE.AxesHelper(5);
+      scene.add(axesHelper);
+      cameraFront = new THREE.PerspectiveCamera(45,1,0.1,100);
+      cameraBack  = new THREE.PerspectiveCamera(45,1,0.1,100);
+      cameraLeft  = new THREE.PerspectiveCamera(45,1,0.1,100);
+      cameraRight = new THREE.PerspectiveCamera(45,1,0.1,100);
+      loadFBXModel();
+      // Grab UI references
+      inversionUI       = document.getElementById('inversionUI');
+      flipXCheck        = document.getElementById('flipXCheck');
+      flipYCheck        = document.getElementById('flipYCheck');
+      rotate180Check    = document.getElementById('rotate180Check');
+      rotMinus45Btn     = document.getElementById('rotMinus45Btn');
+      rotPlus45Btn      = document.getElementById('rotPlus45Btn');
+      rotMinus45XBtn    = document.getElementById('rotMinus45XBtn');
+      rotPlus45XBtn     = document.getElementById('rotPlus45XBtn');
+      rotMinus45YBtn    = document.getElementById('rotMinus45YBtn');
+      rotPlus45YBtn     = document.getElementById('rotPlus45YBtn');
+      flipXCheck.addEventListener('change', onInversionChange);
+      flipYCheck.addEventListener('change', onInversionChange);
+      rotate180Check.addEventListener('change', onInversionChange);
+      rotMinus45Btn.addEventListener('click', () => onRotateZ(-45));
+      rotPlus45Btn.addEventListener('click',  () => onRotateZ(+45));
+      rotMinus45XBtn.addEventListener('click', () => onRotateX(-45));
+      rotPlus45XBtn.addEventListener('click', () => onRotateX(+45));
+      rotMinus45YBtn.addEventListener('click', () => onRotateY(-45));
+      rotPlus45YBtn.addEventListener('click', () => onRotateY(+45));
+      overlayTop    = document.getElementById('overlayTop');
+      overlayBottom = document.getElementById('overlayBottom');
+      overlayLeft   = document.getElementById('overlayLeft');
+      overlayRight  = document.getElementById('overlayRight');
+      overlayTop.addEventListener('click',    () => onQuadrantClick('front'));
+      overlayBottom.addEventListener('click', () => onQuadrantClick('back'));
+      overlayLeft.addEventListener('click',   () => onQuadrantClick('left'));
+      overlayRight.addEventListener('click',  () => onQuadrantClick('right'));
+      zoomSlider = document.getElementById('zoomSlider');
+      zoomLabel  = document.getElementById('zoomLabel');
+      zoomSlider.addEventListener('input', onZoomChange);
+      modelRotSlider = document.getElementById('modelRotSlider');
+      modelRotLabel  = document.getElementById('modelRotLabel');
+      modelRotSlider.addEventListener('input', onModelRotChange);
+      animSlider = document.getElementById('animSlider');
+      animTimeLabel = document.getElementById('animTimeLabel');
+      animSlider.addEventListener('input', onAnimSliderChange);
+      animModeRadioButtons = document.getElementsByName('animMode');
+      animModeRadioButtons.forEach(radio => {
+        radio.addEventListener('change', onAnimModeChange);
+      });
+      containerScaleSlider = document.getElementById('containerScaleSlider');
+      containerScaleLabel  = document.getElementById('containerScaleLabel');
+      containerScaleSlider.addEventListener('input', onContainerScaleChange);
+      gapSlider = document.getElementById('gapSlider');
+      gapLabel  = document.getElementById('gapLabel');
+      gapSlider.addEventListener('input', onGapChange);
+      // Shader UI references
+      shaderEnableCheck = document.getElementById('shaderEnableCheck');
+      baseColorInput = document.getElementById('baseColorInput');
+      glowColorInput = document.getElementById('glowColorInput');
+      scanlineSpeedSlider = document.getElementById('scanlineSpeedSlider');
+      scanlineSpeedLabel = document.getElementById('scanlineSpeedLabel');
+      scanlineFreqSlider = document.getElementById('scanlineFreqSlider');
+      scanlineFreqLabel = document.getElementById('scanlineFreqLabel');
+      shaderEnableCheck.addEventListener('change', onShaderToggle);
+      baseColorInput.addEventListener('input', updateShaderUniforms);
+      glowColorInput.addEventListener('input', updateShaderUniforms);
+      scanlineSpeedSlider.addEventListener('input', () => {
+        scanlineSpeedLabel.textContent = scanlineSpeedSlider.value;
+        updateShaderUniforms();
+      });
+      scanlineFreqSlider.addEventListener('input', () => {
+        scanlineFreqLabel.textContent = scanlineFreqSlider.value;
+        updateShaderUniforms();
+      });
+      window.addEventListener('resize', onWindowResize);
+      onWindowResize();
+      animate();
+    }
+
+    /************************************************
+     * LOAD THE FBX MODEL
+     ***********************************************/
+    function loadFBXModel() {
+      const loader = new THREE.FBXLoader();
+      loader.load(
+        'hologramman2.fbx',
+        (fbx) => {
+          model = fbx;
+          model.position.set(0,0,0);
+          model.scale.setScalar(0.01);
+          setupAnimation(fbx);
+          scene.add(model);
+          console.log("FBX loaded successfully!");
+          // Apply shader effect if enabled
+          if (shaderEnableCheck.checked) {
+            hologramMaterial = applyHologramEffect(model);
+          }
+        },
+        undefined,
+        (err) => {
+          console.error("Error loading FBX:", err);
+        }
+      );
+    }
+    
+    function setupAnimation(fbx) {
+      if (fbx.animations && fbx.animations.length > 0) {
+        mixer = new THREE.AnimationMixer(fbx);
+        const clip = fbx.animations[0];
+        action = mixer.clipAction(clip);
+        animDuration = clip.duration;
+        animSlider.min = 0;
+        animSlider.max = animDuration;
+        animSlider.value = 0;
+        console.log("Animation found. Duration:", animDuration);
+      } else {
+        console.log("No animation in this FBX.");
+      }
+    }
+    
+    /************************************************
+     * HOLOGRAPHIC SHADER (with skinning support)
+     ***********************************************/
+    function applyHologramEffect(object) {
+      // Create a shader material that supports skinning.
+      const material = new THREE.ShaderMaterial({
+        uniforms: {
+          time: { value: 0.0 },
+          baseColor: { value: new THREE.Color(baseColorInput.value) },
+          glowColor: { value: new THREE.Color(glowColorInput.value) },
+          scanlineFreq: { value: parseFloat(scanlineFreqSlider.value) },
+          scanlineSpeed: { value: parseFloat(scanlineSpeedSlider.value) },
+          opacity: { value: 0.8 },
+          edgeIntensity: { value: 0.8 },
+          flickerSpeed: { value: 0.8 }
+        },
+        vertexShader: `
+          #define USE_SKINNING
+          #ifdef USE_SKINNING
+            uniform mat4 bindMatrix;
+            uniform mat4 bindMatrixInverse;
+            attribute vec4 skinIndex;
+            attribute vec4 skinWeight;
+            uniform mat4 boneMatrix[ MAX_BONES ];
+          #endif
+          varying vec2 vUv;
+          varying vec3 vNormal;
+          varying vec3 vPosition;
+          void main() {
+            vUv = uv;
+            vNormal = normalize( normalMatrix * normal );
+            #ifdef USE_SKINNING
+              vec4 skinVertex = bindMatrix * vec4( position, 1.0 );
+              vec4 skinned = vec4( 0.0 );
+              skinned += skinWeight.x * ( boneMatrix[int(skinIndex.x)] * skinVertex );
+              skinned += skinWeight.y * ( boneMatrix[int(skinIndex.y)] * skinVertex );
+              skinned += skinWeight.z * ( boneMatrix[int(skinIndex.z)] * skinVertex );
+              skinned += skinWeight.w * ( boneMatrix[int(skinIndex.w)] * skinVertex );
+              skinned = bindMatrixInverse * skinned;
+              vPosition = skinned.xyz;
+              gl_Position = projectionMatrix * modelViewMatrix * skinned;
+            #else
+              vPosition = position;
+              gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );
+            #endif
+          }
+        `,
+        fragmentShader: `
+          uniform float time;
+          uniform vec3 baseColor;
+          uniform vec3 glowColor;
+          uniform float scanlineFreq;
+          uniform float scanlineSpeed;
+          uniform float opacity;
+          uniform float edgeIntensity;
+          uniform float flickerSpeed;
+          varying vec2 vUv;
+          varying vec3 vNormal;
+          varying vec3 vPosition;
+          void main() {
+            vec3 viewDir = normalize(cameraPosition - vPosition);
+            float fresnel = pow(1.0 - dot(viewDir, vNormal), 3.0) * edgeIntensity;
+            float scanline = sin(vPosition.y * scanlineFreq - time * scanlineSpeed) * 0.05 + 0.95;
+            float horizontalLines = smoothstep(0.4, 0.5, abs(sin(vUv.y * 100.0)));
+            float flicker = sin(time * flickerSpeed) * 0.08 + 0.92;
+            float noise = fract(sin(dot(vUv, vec2(12.9898, 78.233)) + time) * 43758.5453);
+            float noiseEffect = mix(0.9, 1.0, noise);
+            vec3 finalColor = mix(baseColor, glowColor, fresnel * 0.7);
+            finalColor *= scanline * flicker * noiseEffect;
+            float a = opacity * horizontalLines;
+            gl_FragColor = vec4(finalColor, a);
+          }
+        `,
+        transparent: true,
+        side: THREE.DoubleSide,
+        skinning: true
+      });
+      
+      // Store original materials and apply the new shader to every mesh.
+      originalMaterials = [];
+      object.traverse(child => {
+        if (child.isMesh) {
+          originalMaterials.push({ mesh: child, material: child.material });
+          child.material = material;
+        }
+      });
+      return material;
+    }
+    
+    function removeHologramEffect(object) {
+      // Restore each mesh's original material.
+      originalMaterials.forEach(entry => {
+        entry.mesh.material = entry.material;
+      });
+      originalMaterials = [];
+    }
+    
+    function updateShaderUniforms() {
+      if (hologramMaterial) {
+        hologramMaterial.uniforms.baseColor.value.set(baseColorInput.value);
+        hologramMaterial.uniforms.glowColor.value.set(glowColorInput.value);
+        hologramMaterial.uniforms.scanlineSpeed.value = parseFloat(scanlineSpeedSlider.value);
+        hologramMaterial.uniforms.scanlineFreq.value = parseFloat(scanlineFreqSlider.value);
+      }
+    }
+    
+    function onShaderToggle() {
+      shaderEnabled = shaderEnableCheck.checked;
+      if (model) {
+        if (shaderEnabled) {
+          hologramMaterial = applyHologramEffect(model);
+          updateShaderUniforms();
+        } else {
+          removeHologramEffect(model);
+          hologramMaterial = null;
+        }
+      }
+    }
+    
+    /************************************************
+     * ANIMATION & MODEL UPDATE
+     ***********************************************/
+    function onAnimModeChange(e) {
+      animMode = e.target.value;
+      if (!mixer || !action) return;
+      if (animMode === "play") {
+        const currentTime = parseFloat(animSlider.value);
+        action.paused = false;
+        action.play();
+        mixer.setTime(currentTime);
+      } else {
+        action.paused = true;
+      }
+    }
+    
+    function onAnimSliderChange(e) {
+      if (!mixer || !action) return;
+      if (animMode !== "scrub") return;
+      const t = parseFloat(e.target.value);
+      animTimeLabel.textContent = t.toFixed(2);
+      action.paused = false;
+      action.play();
+      mixer.setTime(t);
+      mixer.update(0.0001);
+      action.paused = true;
+    }
+    
+    function onModelRotChange(e) {
+      modelYRotation = parseFloat(e.target.value);
+      modelRotLabel.textContent = modelYRotation.toFixed(2);
+      if (model) {
+        model.rotation.y = THREE.MathUtils.degToRad(modelYRotation);
+      }
+    }
+    
+    function onContainerScaleChange(e) {
+      containerScaleFraction = parseFloat(e.target.value);
+      containerScaleLabel.textContent = containerScaleFraction.toFixed(2);
+      onWindowResize();
+    }
+    
+    function onGapChange(e) {
+      gapFraction = parseFloat(e.target.value);
+      gapLabel.textContent = gapFraction.toFixed(2);
+      onWindowResize();
+    }
+    
+    function onZoomChange(e) {
+      globalZoom = parseFloat(e.target.value);
+      zoomLabel.textContent = globalZoom.toFixed(2);
+      applyAllCameraTransforms();
+    }
+    
+    function applyAllCameraTransforms() {
+      applyCameraTransform('front');
+      applyCameraTransform('back');
+      applyCameraTransform('left');
+      applyCameraTransform('right');
+    }
+    
+    function onQuadrantClick(camKey) {
+      selectedCamKey = camKey;
+      inversionUI.style.display = 'block';
+      const st = cameraStates[camKey];
+      flipXCheck.checked     = st.flipX;
+      flipYCheck.checked     = st.flipY;
+      rotate180Check.checked = st.rotate180;
+    }
+    
+    function onInversionChange() {
+      if (!selectedCamKey) return;
+      const st = cameraStates[selectedCamKey];
+      st.flipX     = flipXCheck.checked;
+      st.flipY     = flipYCheck.checked;
+      st.rotate180 = rotate180Check.checked;
+      applyCameraTransform(selectedCamKey);
+    }
+    
+    function onRotateZ(deg) {
+      if (!selectedCamKey) return;
+      cameraStates[selectedCamKey].rz += deg;
+      applyCameraTransform(selectedCamKey);
+    }
+    
+    function onRotateX(deg) {
+      if (!selectedCamKey) return;
+      cameraStates[selectedCamKey].rx += deg;
+      applyCameraTransform(selectedCamKey);
+    }
+    
+    function onRotateY(deg) {
+      if (!selectedCamKey) return;
+      cameraStates[selectedCamKey].ry += deg;
+      applyCameraTransform(selectedCamKey);
+    }
+    
+    function applyCameraTransform(camKey) {
+      let cam = getCamera(camKey);
+      if (!cam) return;
+      const st = cameraStates[camKey];
+      let rx = st.rx, ry = st.ry, rz = st.rz;
+      if (st.flipX) ry += 180;
+      if (st.flipY) rx += 180;
+      if (st.rotate180) rz += 180;
+      const basePos = basePositions[camKey].clone().multiplyScalar(globalZoom);
+      const newPos = revolveAroundPivot(basePos, pivot, rx, ry, rz);
+      cam.position.copy(newPos);
+      cam.rotation.set(0,0,0);
+      if (camKey === 'left') {
+        cam.rotateX(Math.PI / 2);
+      } else if (camKey === 'right') {
+        cam.rotateX(-Math.PI / 2);
+      }
+      cam.lookAt(pivot);
+      if (rz !== 0) {
+        cam.rotateZ(THREE.MathUtils.degToRad(rz));
+      }
+    }
+    
+    function revolveAroundPivot(basePos, pivot, rxDeg, ryDeg, rzDeg) {
+      const v = new THREE.Vector3().copy(basePos).sub(pivot);
+      const rxRad = THREE.MathUtils.degToRad(rxDeg);
+      const ryRad = THREE.MathUtils.degToRad(ryDeg);
+      const rzRad = THREE.MathUtils.degToRad(rzDeg);
+      const eul = new THREE.Euler(0,0,0,'ZXY');
+      eul.set(0,0,rzRad, 'ZXY');
+      v.applyEuler(eul);
+      eul.set(rxRad, 0, 0, 'ZXY');
+      v.applyEuler(eul);
+      eul.set(0, ryRad, 0, 'ZXY');
+      v.applyEuler(eul);
+      v.add(pivot);
+      return v;
+    }
+    
+    function getCamera(k) {
+      switch(k) {
+        case 'front': return cameraFront;
+        case 'back':  return cameraBack;
+        case 'left':  return cameraLeft;
+        case 'right': return cameraRight;
+      }
+      return null;
+    }
+    
+    function onWindowResize() {
+      w = window.innerWidth;
+      h = window.innerHeight;
+      renderer.setSize(w, h);
+      let containerSize = containerScaleFraction * Math.min(w, h);
+      let gapPx = gapFraction * Math.min(w, h);
+      rectCenter.w = containerSize;
+      rectCenter.h = containerSize;
+      rectCenter.x = (w - containerSize) / 2;
+      rectCenter.y = (h - containerSize) / 2;
+      rectTop.w = rectBottom.w = rectLeft.w = rectRight.w = containerSize;
+      rectTop.h = rectBottom.h = rectLeft.h = rectRight.h = containerSize;
+      rectTop.x = rectCenter.x;
+      rectTop.y = rectCenter.y - (containerSize + gapPx);
+      rectBottom.x = rectCenter.x;
+      rectBottom.y = rectCenter.y + (containerSize + gapPx);
+      rectLeft.x = rectCenter.x - (containerSize + gapPx);
+      rectLeft.y = rectCenter.y;
+      rectRight.x = rectCenter.x + (containerSize + gapPx);
+      rectRight.y = rectCenter.y;
+      positionOutline('squareCenter', rectCenter);
+      positionOutline('squareTop', rectTop);
+      positionOutline('squareBottom', rectBottom);
+      positionOutline('squareLeft', rectLeft);
+      positionOutline('squareRight', rectRight);
+      positionOverlay('overlayTop', rectTop);
+      positionOverlay('overlayBottom', rectBottom);
+      positionOverlay('overlayLeft', rectLeft);
+      positionOverlay('overlayRight', rectRight);
+      applyAllCameraTransforms();
+    }
+    
+    function positionOutline(id, r) {
+      const el = document.getElementById(id);
+      el.style.left   = r.x + 'px';
+      el.style.top    = r.y + 'px';
+      el.style.width  = r.w + 'px';
+      el.style.height = r.h + 'px';
+    }
+    
+    function positionOverlay(id, r) {
+      const el = document.getElementById(id);
+      el.style.left   = r.x + 'px';
+      el.style.top    = r.y + 'px';
+      el.style.width  = r.w + 'px';
+      el.style.height = r.h + 'px';
+    }
+    
+    function animate() {
+      requestAnimationFrame(animate);
+      const time = performance.now() * 0.001;
+      if (hologramMaterial) {
+        hologramMaterial.uniforms.time.value = time;
+      }
+      if (mixer && action) {
+        if (animMode === "play") {
+          mixer.update(clock.getDelta());
+        }
+      }
+      if (model) {
+        model.rotation.y = THREE.MathUtils.degToRad(modelYRotation);
+      }
+      renderer.setViewport(rectTop.x, rectTop.y, rectTop.w, rectTop.h);
+      renderer.setScissor(rectTop.x, rectTop.y, rectTop.w, rectTop.h);
+      renderer.setScissorTest(true);
+      renderer.render(scene, cameraFront);
+      renderer.setViewport(rectBottom.x, rectBottom.y, rectBottom.w, rectBottom.h);
+      renderer.setScissor(rectBottom.x, rectBottom.y, rectBottom.w, rectBottom.h);
+      renderer.setScissorTest(true);
+      renderer.render(scene, cameraBack);
+      renderer.setViewport(rectLeft.x, rectLeft.y, rectLeft.w, rectLeft.h);
+      renderer.setScissor(rectLeft.x, rectLeft.y, rectLeft.w, rectLeft.h);
+      renderer.setScissorTest(true);
+      renderer.render(scene, cameraLeft);
+      renderer.setViewport(rectRight.x, rectRight.y, rectRight.w, rectRight.h);
+      renderer.setScissor(rectRight.x, rectRight.y, rectRight.w, rectRight.h);
+      renderer.setScissorTest(true);
+      renderer.render(scene, cameraRight);
+    }
+    
+    init();
+  </script>
+</body>
+</html>
