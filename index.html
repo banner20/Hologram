@@ -49,6 +49,22 @@
       bottom: 10px;
       right: 10px;
     }
+    #uiToggleBtn {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      background: rgba(0,0,0,0.7);
+      color: #ccc;
+      border: none;
+      border-radius: 5px;
+      padding: 8px 12px;
+      cursor: pointer;
+      z-index: 11;
+      font-size: 14px;
+    }
+    #uiToggleBtn:hover {
+      background: rgba(30,30,30,0.8);
+    }
     .checkbox-row, .button-row, .input-row, .axis-row {
       margin-bottom: 6px;
     }
@@ -85,6 +101,8 @@
   <div id="overlayBottom" class="quadOverlay"></div>
   <div id="overlayLeft"   class="quadOverlay"></div>
   <div id="overlayRight"  class="quadOverlay"></div>
+  <!-- UI Toggle Button -->
+  <button id="uiToggleBtn">Hide UI</button>
   <!-- UI for camera controls -->
   <div id="inversionUI">
     <h3>Camera Controls</h3>
@@ -241,6 +259,9 @@
     // Visual toggle elements
     let showOutlinesCheck, showAxisHelperCheck;
     let axesHelper;
+    // UI toggle
+    let uiToggleBtn;
+    let uiVisible = true;
     
     function init() {
       const canvas = document.getElementById('myCanvas');
@@ -366,6 +387,11 @@
       showAxisHelperCheck = document.getElementById('showAxisHelperCheck');
       showOutlinesCheck.addEventListener('change', onToggleOutlines);
       showAxisHelperCheck.addEventListener('change', onToggleAxisHelper);
+      
+      // UI toggle
+      uiToggleBtn = document.getElementById('uiToggleBtn');
+      uiToggleBtn.addEventListener('click', toggleUI);
+      
       window.addEventListener('resize', onWindowResize);
       onWindowResize();
       animate();
@@ -857,6 +883,28 @@
     
     function onToggleAxisHelper() {
       axesHelper.visible = showAxisHelperCheck.checked;
+    }
+    
+    function toggleUI() {
+      uiVisible = !uiVisible;
+      
+      // Toggle the UI panels
+      const inversionUI = document.getElementById('inversionUI');
+      const shaderUI = document.getElementById('shaderUI');
+      const squareOutlines = document.querySelectorAll('.squareOutline');
+      
+      inversionUI.style.display = uiVisible ? 'block' : 'none';
+      shaderUI.style.display = uiVisible ? 'block' : 'none';
+      
+      // Only hide outlines if they're currently visible
+      if (showOutlinesCheck.checked) {
+        squareOutlines.forEach(el => {
+          el.style.display = uiVisible ? 'block' : 'none';
+        });
+      }
+      
+      // Update button text
+      uiToggleBtn.textContent = uiVisible ? 'Hide UI' : 'Show UI';
     }
     
     init();
