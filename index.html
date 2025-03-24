@@ -379,21 +379,29 @@
       loader.load(
         'hologramman2.fbx',
         (fbx) => {
-          model = fbx;
-          model.position.set(0,0,0);
-          model.scale.setScalar(0.01);
+          // Create a container for the model to allow proper rotation
+          const container = new THREE.Group();
+          scene.add(container);
+          
+          // Set up the model inside the container
+          fbx.position.set(0,0,0);
+          fbx.scale.setScalar(0.01);
           
           // Center the model's pivot point
-          const box = new THREE.Box3().setFromObject(model);
+          const box = new THREE.Box3().setFromObject(fbx);
           const center = box.getCenter(new THREE.Vector3());
-          model.position.sub(center);
+          fbx.position.sub(center);
+          
+          // Add the model to the container
+          container.add(fbx);
+          model = container; // Use the container as our model reference
           
           setupAnimation(fbx);
-          scene.add(model);
           console.log("FBX loaded successfully!");
+          
           // Apply shader effect if enabled
           if (shaderEnableCheck.checked) {
-            hologramMaterial = applyHologramEffect(model);
+            hologramMaterial = applyHologramEffect(fbx);
           }
         },
         undefined,
