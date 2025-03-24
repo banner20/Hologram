@@ -47,7 +47,7 @@
     }
     #shaderUI {
       bottom: 10px;
-      left: 10px;
+      right: 10px;
     }
     .checkbox-row, .button-row, .input-row, .axis-row {
       margin-bottom: 6px;
@@ -61,7 +61,7 @@
       width: 100%;
     }
     /* UI rows */
-    #zoomRow, #animRow, #modelRotRow, #containerScaleRow, #gapRow {
+    #zoomRow, #animRow, #modelRotRow, #containerScaleRow, #gapRow, #visualsRow {
       margin-top: 8px;
       background: rgba(0,0,0,0.5);
       padding: 6px;
@@ -96,6 +96,14 @@
     </div>
     <div class="checkbox-row">
       <label><input type="checkbox" id="rotate180Check"> Rotate 180° (Z-axis)</label>
+    </div>
+    <div id="visualsRow">
+      <div class="checkbox-row">
+        <label><input type="checkbox" id="showOutlinesCheck" checked> Show Outlines</label>
+      </div>
+      <div class="checkbox-row">
+        <label><input type="checkbox" id="showAxisHelperCheck" checked> Show Axis Helper</label>
+      </div>
     </div>
     <div class="button-row">
       <button id="rotMinus45Btn">-45° Z</button>
@@ -143,12 +151,36 @@
       <input type="color" id="glowColorInput" value="#0088ff">
     </div>
     <div class="input-row">
+      <label>Rim Intensity: <span id="rimIntensityLabel">1.50</span></label>
+      <input type="range" id="rimIntensitySlider" min="0.1" max="3.0" step="0.1" value="1.5">
+    </div>
+    <div class="input-row">
+      <label>Glow Strength: <span id="glowStrengthLabel">0.80</span></label>
+      <input type="range" id="glowStrengthSlider" min="0.0" max="2.0" step="0.1" value="0.8">
+    </div>
+    <div class="input-row">
       <label>Scanline Speed: <span id="scanlineSpeedLabel">0.50</span></label>
       <input type="range" id="scanlineSpeedSlider" min="0.1" max="2.0" step="0.1" value="0.5">
     </div>
     <div class="input-row">
       <label>Scanline Frequency: <span id="scanlineFreqLabel">50</span></label>
       <input type="range" id="scanlineFreqSlider" min="10" max="100" step="1" value="50">
+    </div>
+    <div class="input-row">
+      <label>Scanline Intensity: <span id="scanlineIntensityLabel">0.15</span></label>
+      <input type="range" id="scanlineIntensitySlider" min="0.05" max="0.4" step="0.01" value="0.15">
+    </div>
+    <div class="input-row">
+      <label>Flicker Speed: <span id="flickerSpeedLabel">0.80</span></label>
+      <input type="range" id="flickerSpeedSlider" min="0.1" max="3.0" step="0.1" value="0.8">
+    </div>
+    <div class="input-row">
+      <label>Flicker Intensity: <span id="flickerIntensityLabel">0.15</span></label>
+      <input type="range" id="flickerIntensitySlider" min="0.05" max="0.5" step="0.01" value="0.15">
+    </div>
+    <div class="input-row">
+      <label>Opacity: <span id="opacityLabel">0.85</span></label>
+      <input type="range" id="opacitySlider" min="0.3" max="1.0" step="0.05" value="0.85">
     </div>
   </div>
   <script>
@@ -170,7 +202,7 @@
     let gapSlider, gapLabel;
     let containerScaleFraction = 0.2;
     let gapFraction = 0.1;
-    const pivot = new THREE.Vector3(0,1,0);
+    const pivot = new THREE.Vector3(0,0,0);
     const cameraStates = {
       front: { rx:0,   ry:0, rz:0, flipX:false, flipY:false, rotate180:false },
       back:  { rx:0,   ry:0, rz:0, flipX:false, flipY:false, rotate180:false },
@@ -178,10 +210,10 @@
       right: { rx:-90, ry:0, rz:0, flipX:false, flipY:false, rotate180:false }
     };
     const basePositions = {
-      front: new THREE.Vector3(0,2, 10),
-      back:  new THREE.Vector3(0,2,-10),
-      left:  new THREE.Vector3(-10,2,0),
-      right: new THREE.Vector3(10,2,0)
+      front: new THREE.Vector3(0,0, 10),
+      back:  new THREE.Vector3(0,0,-10),
+      left:  new THREE.Vector3(-10,0,0),
+      right: new THREE.Vector3(10,0,0)
     };
     let globalZoom = 1.0;
     let modelYRotation = 0;
@@ -200,6 +232,15 @@
     let shaderEnableCheck, baseColorInput, glowColorInput;
     let scanlineSpeedSlider, scanlineSpeedLabel;
     let scanlineFreqSlider, scanlineFreqLabel;
+    let rimIntensitySlider, rimIntensityLabel;
+    let glowStrengthSlider, glowStrengthLabel;
+    let scanlineIntensitySlider, scanlineIntensityLabel;
+    let flickerSpeedSlider, flickerSpeedLabel;
+    let flickerIntensitySlider, flickerIntensityLabel;
+    let opacitySlider, opacityLabel;
+    // Visual toggle elements
+    let showOutlinesCheck, showAxisHelperCheck;
+    let axesHelper;
     
     function init() {
       const canvas = document.getElementById('myCanvas');
@@ -211,7 +252,7 @@
       const dir = new THREE.DirectionalLight(0xffffff, 0.8);
       dir.position.set(5,10,7);
       scene.add(dir);
-      const axesHelper = new THREE.AxesHelper(5);
+      axesHelper = new THREE.AxesHelper(5);
       scene.add(axesHelper);
       cameraFront = new THREE.PerspectiveCamera(45,1,0.1,100);
       cameraBack  = new THREE.PerspectiveCamera(45,1,0.1,100);
@@ -273,6 +314,18 @@
       scanlineSpeedLabel = document.getElementById('scanlineSpeedLabel');
       scanlineFreqSlider = document.getElementById('scanlineFreqSlider');
       scanlineFreqLabel = document.getElementById('scanlineFreqLabel');
+      rimIntensitySlider = document.getElementById('rimIntensitySlider');
+      rimIntensityLabel = document.getElementById('rimIntensityLabel');
+      glowStrengthSlider = document.getElementById('glowStrengthSlider');
+      glowStrengthLabel = document.getElementById('glowStrengthLabel');
+      scanlineIntensitySlider = document.getElementById('scanlineIntensitySlider');
+      scanlineIntensityLabel = document.getElementById('scanlineIntensityLabel');
+      flickerSpeedSlider = document.getElementById('flickerSpeedSlider');
+      flickerSpeedLabel = document.getElementById('flickerSpeedLabel');
+      flickerIntensitySlider = document.getElementById('flickerIntensitySlider');
+      flickerIntensityLabel = document.getElementById('flickerIntensityLabel');
+      opacitySlider = document.getElementById('opacitySlider');
+      opacityLabel = document.getElementById('opacityLabel');
       shaderEnableCheck.addEventListener('change', onShaderToggle);
       baseColorInput.addEventListener('input', updateShaderUniforms);
       glowColorInput.addEventListener('input', updateShaderUniforms);
@@ -284,6 +337,35 @@
         scanlineFreqLabel.textContent = scanlineFreqSlider.value;
         updateShaderUniforms();
       });
+      rimIntensitySlider.addEventListener('input', () => {
+        rimIntensityLabel.textContent = rimIntensitySlider.value;
+        updateShaderUniforms();
+      });
+      glowStrengthSlider.addEventListener('input', () => {
+        glowStrengthLabel.textContent = glowStrengthSlider.value;
+        updateShaderUniforms();
+      });
+      scanlineIntensitySlider.addEventListener('input', () => {
+        scanlineIntensityLabel.textContent = scanlineIntensitySlider.value;
+        updateShaderUniforms();
+      });
+      flickerSpeedSlider.addEventListener('input', () => {
+        flickerSpeedLabel.textContent = flickerSpeedSlider.value;
+        updateShaderUniforms();
+      });
+      flickerIntensitySlider.addEventListener('input', () => {
+        flickerIntensityLabel.textContent = flickerIntensitySlider.value;
+        updateShaderUniforms();
+      });
+      opacitySlider.addEventListener('input', () => {
+        opacityLabel.textContent = opacitySlider.value;
+        updateShaderUniforms();
+      });
+      // Visual toggles
+      showOutlinesCheck = document.getElementById('showOutlinesCheck');
+      showAxisHelperCheck = document.getElementById('showAxisHelperCheck');
+      showOutlinesCheck.addEventListener('change', onToggleOutlines);
+      showAxisHelperCheck.addEventListener('change', onToggleAxisHelper);
       window.addEventListener('resize', onWindowResize);
       onWindowResize();
       animate();
@@ -300,6 +382,12 @@
           model = fbx;
           model.position.set(0,0,0);
           model.scale.setScalar(0.01);
+          
+          // Center the model's pivot point
+          const box = new THREE.Box3().setFromObject(model);
+          const center = box.getCenter(new THREE.Vector3());
+          model.position.sub(center);
+          
           setupAnimation(fbx);
           scene.add(model);
           console.log("FBX loaded successfully!");
@@ -342,39 +430,39 @@
           glowColor: { value: new THREE.Color(glowColorInput.value) },
           scanlineFreq: { value: parseFloat(scanlineFreqSlider.value) },
           scanlineSpeed: { value: parseFloat(scanlineSpeedSlider.value) },
-          opacity: { value: 0.8 },
-          edgeIntensity: { value: 0.8 },
-          flickerSpeed: { value: 0.8 }
+          rimIntensity: { value: parseFloat(rimIntensitySlider.value) },
+          glowStrength: { value: parseFloat(glowStrengthSlider.value) },
+          scanlineIntensity: { value: parseFloat(scanlineIntensitySlider.value) },
+          flickerSpeed: { value: parseFloat(flickerSpeedSlider.value) },
+          flickerIntensity: { value: parseFloat(flickerIntensitySlider.value) },
+          opacity: { value: parseFloat(opacitySlider.value) }
         },
         vertexShader: `
-          #define USE_SKINNING
-          #ifdef USE_SKINNING
-            uniform mat4 bindMatrix;
-            uniform mat4 bindMatrixInverse;
-            attribute vec4 skinIndex;
-            attribute vec4 skinWeight;
-            uniform mat4 boneMatrix[ MAX_BONES ];
-          #endif
+          #include <skinning_pars_vertex>
+          #include <morphtarget_pars_vertex>
+          
           varying vec2 vUv;
           varying vec3 vNormal;
           varying vec3 vPosition;
+          varying vec3 vWorldPosition;
+          
           void main() {
             vUv = uv;
-            vNormal = normalize( normalMatrix * normal );
-            #ifdef USE_SKINNING
-              vec4 skinVertex = bindMatrix * vec4( position, 1.0 );
-              vec4 skinned = vec4( 0.0 );
-              skinned += skinWeight.x * ( boneMatrix[int(skinIndex.x)] * skinVertex );
-              skinned += skinWeight.y * ( boneMatrix[int(skinIndex.y)] * skinVertex );
-              skinned += skinWeight.z * ( boneMatrix[int(skinIndex.z)] * skinVertex );
-              skinned += skinWeight.w * ( boneMatrix[int(skinIndex.w)] * skinVertex );
-              skinned = bindMatrixInverse * skinned;
-              vPosition = skinned.xyz;
-              gl_Position = projectionMatrix * modelViewMatrix * skinned;
-            #else
-              vPosition = position;
-              gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );
-            #endif
+            
+            #include <beginnormal_vertex>
+            #include <morphnormal_vertex>
+            #include <skinbase_vertex>
+            #include <skinnormal_vertex>
+            
+            vNormal = normalize(normalMatrix * objectNormal);
+            
+            #include <begin_vertex>
+            #include <morphtarget_vertex>
+            #include <skinning_vertex>
+            #include <project_vertex>
+            
+            vPosition = transformed;
+            vWorldPosition = (modelMatrix * vec4(transformed, 1.0)).xyz;
           }
         `,
         fragmentShader: `
@@ -383,29 +471,73 @@
           uniform vec3 glowColor;
           uniform float scanlineFreq;
           uniform float scanlineSpeed;
-          uniform float opacity;
-          uniform float edgeIntensity;
+          uniform float rimIntensity;
+          uniform float glowStrength;
+          uniform float scanlineIntensity;
           uniform float flickerSpeed;
+          uniform float flickerIntensity;
+          uniform float opacity;
+          
           varying vec2 vUv;
           varying vec3 vNormal;
           varying vec3 vPosition;
+          varying vec3 vWorldPosition;
+          
+          float random(vec2 st) {
+            return fract(sin(dot(st.xy, vec2(12.9898, 78.233))) * 43758.5453123);
+          }
+          
           void main() {
-            vec3 viewDir = normalize(cameraPosition - vPosition);
-            float fresnel = pow(1.0 - dot(viewDir, vNormal), 3.0) * edgeIntensity;
-            float scanline = sin(vPosition.y * scanlineFreq - time * scanlineSpeed) * 0.05 + 0.95;
-            float horizontalLines = smoothstep(0.4, 0.5, abs(sin(vUv.y * 100.0)));
-            float flicker = sin(time * flickerSpeed) * 0.08 + 0.92;
-            float noise = fract(sin(dot(vUv, vec2(12.9898, 78.233)) + time) * 43758.5453);
-            float noiseEffect = mix(0.9, 1.0, noise);
-            vec3 finalColor = mix(baseColor, glowColor, fresnel * 0.7);
+            // Edge glow effect (rim lighting)
+            vec3 viewDir = normalize(cameraPosition - vWorldPosition);
+            float rim = pow(1.0 - abs(dot(viewDir, vNormal)), rimIntensity);
+            
+            // Scanlines
+            float scanline = sin((vWorldPosition.y * scanlineFreq) - (time * scanlineSpeed));
+            scanline = (scanline * scanlineIntensity) + (1.0 - scanlineIntensity);
+            
+            // Horizontal lines
+            float hlines = smoothstep(0.4, 0.5, abs(sin(vUv.y * 100.0)));
+            
+            // Random flickering
+            float flicker = sin(time * flickerSpeed) * flickerIntensity + (1.0 - flickerIntensity);
+            
+            // Noise effect
+            float noise = random(vUv + time * 0.1);
+            float noiseEffect = mix(0.95, 1.0, noise);
+            
+            // Static/interference
+            float staticEffect = step(0.98, random(vUv + floor(time * 10.0)));
+            
+            // Combine all effects
+            vec3 finalColor = mix(baseColor, glowColor, rim * glowStrength);
             finalColor *= scanline * flicker * noiseEffect;
-            float a = opacity * horizontalLines;
-            gl_FragColor = vec4(finalColor, a);
+            finalColor += staticEffect * 0.1; // Add some static
+            
+            // More pronounced edge glow
+            float edgeGlow = pow(rim, 2.0) * glowStrength;
+            finalColor += glowColor * edgeGlow * 0.5;
+            
+            // Small random glitches
+            if (random(vec2(floor(time * 1.2), floor(time * 2.3))) > 0.995) {
+              float glitchLine = step(0.9, random(vec2(floor(vUv.y * 10.0), floor(time * 10.0))));
+              finalColor *= mix(1.0, 0.5, glitchLine);
+              finalColor += glowColor * glitchLine * 0.5;
+            }
+            
+            // Final opacity
+            float finalOpacity = opacity * hlines;
+            gl_FragColor = vec4(finalColor, finalOpacity);
           }
         `,
         transparent: true,
         side: THREE.DoubleSide,
-        skinning: true
+        skinning: true,
+        morphTargets: true,
+        morphNormals: true,
+        defines: {
+          MAX_BONES: 60
+        }
       });
       
       // Store original materials and apply the new shader to every mesh.
@@ -413,7 +545,19 @@
       object.traverse(child => {
         if (child.isMesh) {
           originalMaterials.push({ mesh: child, material: child.material });
-          child.material = material;
+          const clonedMaterial = material.clone();
+          
+          // Copy all necessary properties to support animations
+          clonedMaterial.skinning = child.isSkinnedMesh;
+          clonedMaterial.morphTargets = child.morphTargetInfluences && child.morphTargetInfluences.length > 0;
+          clonedMaterial.morphNormals = clonedMaterial.morphTargets;
+          
+          child.material = clonedMaterial;
+          
+          // For debugging
+          if (child.morphTargetInfluences) {
+            console.log("Mesh has " + child.morphTargetInfluences.length + " morph targets");
+          }
         }
       });
       return material;
@@ -428,12 +572,23 @@
     }
     
     function updateShaderUniforms() {
-      if (hologramMaterial) {
-        hologramMaterial.uniforms.baseColor.value.set(baseColorInput.value);
-        hologramMaterial.uniforms.glowColor.value.set(glowColorInput.value);
-        hologramMaterial.uniforms.scanlineSpeed.value = parseFloat(scanlineSpeedSlider.value);
-        hologramMaterial.uniforms.scanlineFreq.value = parseFloat(scanlineFreqSlider.value);
-      }
+      if (!hologramMaterial) return;
+      
+      // Update all material instances that were created for individual meshes
+      originalMaterials.forEach(entry => {
+        if (entry.mesh.material.uniforms) {
+          entry.mesh.material.uniforms.baseColor.value.set(baseColorInput.value);
+          entry.mesh.material.uniforms.glowColor.value.set(glowColorInput.value);
+          entry.mesh.material.uniforms.scanlineSpeed.value = parseFloat(scanlineSpeedSlider.value);
+          entry.mesh.material.uniforms.scanlineFreq.value = parseFloat(scanlineFreqSlider.value);
+          entry.mesh.material.uniforms.rimIntensity.value = parseFloat(rimIntensitySlider.value);
+          entry.mesh.material.uniforms.glowStrength.value = parseFloat(glowStrengthSlider.value);
+          entry.mesh.material.uniforms.scanlineIntensity.value = parseFloat(scanlineIntensitySlider.value);
+          entry.mesh.material.uniforms.flickerSpeed.value = parseFloat(flickerSpeedSlider.value);
+          entry.mesh.material.uniforms.flickerIntensity.value = parseFloat(flickerIntensitySlider.value);
+          entry.mesh.material.uniforms.opacity.value = parseFloat(opacitySlider.value);
+        }
+      });
     }
     
     function onShaderToggle() {
@@ -646,14 +801,23 @@
     function animate() {
       requestAnimationFrame(animate);
       const time = performance.now() * 0.001;
+      const delta = clock.getDelta();
+      
       if (hologramMaterial) {
-        hologramMaterial.uniforms.time.value = time;
+        // Update time uniform for all hologram materials
+        originalMaterials.forEach(entry => {
+          if (entry.mesh.material.uniforms && entry.mesh.material.uniforms.time) {
+            entry.mesh.material.uniforms.time.value = time;
+          }
+        });
       }
+      
       if (mixer && action) {
         if (animMode === "play") {
-          mixer.update(clock.getDelta());
+          mixer.update(delta);
         }
       }
+      
       if (model) {
         model.rotation.y = THREE.MathUtils.degToRad(modelYRotation);
       }
@@ -673,6 +837,18 @@
       renderer.setScissor(rectRight.x, rectRight.y, rectRight.w, rectRight.h);
       renderer.setScissorTest(true);
       renderer.render(scene, cameraRight);
+    }
+    
+    function onToggleOutlines() {
+      const outlines = document.querySelectorAll('.squareOutline');
+      const visibility = showOutlinesCheck.checked ? 'block' : 'none';
+      outlines.forEach(el => {
+        el.style.display = visibility;
+      });
+    }
+    
+    function onToggleAxisHelper() {
+      axesHelper.visible = showAxisHelperCheck.checked;
     }
     
     init();
